@@ -19,6 +19,7 @@ export default class Game {
     this.grid = this.createEmptyGrid();
     this._isGameOver = false;
     this.currentLevel = null;
+    this.lastDirection = [1, 0]; // Default direction (right)
   }
 
   get isGameOver() {
@@ -78,6 +79,7 @@ export default class Game {
     this.player.x = newX;
     this.player.y = newY;
     this.grid[newY][newX] = 'P';
+    this.lastDirection = [dx, dy]; // Update last direction
   }
   placeBomb(dx, dy) {
     if (!this.player) return;
@@ -153,7 +155,7 @@ export default class Game {
     this.updateBullets();
   }
   randomlyGenerateEnemy() {
-    if (this.enemies.length === 0) return;
+    if (this.enemies.length >= 10) return;
     const directions = [
       [1, 0], [0, 1], [-1, 0], [0, -1]
     ];
@@ -213,23 +215,7 @@ export default class Game {
 
   shootBullet() {
     if (!this.player || this._isGameOver || this.bullets.length > 0) return;
-    const directions = [
-      [1, 0],   // right
-      [0, 1],   // down
-      [-1, 0],  // left
-      [0, -1]   // up
-    ];
-    const cellSize = 1; // Assuming cell size is 1 for simplicity
-    const playerCenterX = (this.player.x + 0.5) * cellSize;
-    const playerCenterY = (this.player.y + 0.5) * cellSize;
-    const mouseX = 0; // This should be updated with actual mouse position if needed
-    const mouseY = 0; // This should be updated with actual mouse position if needed
-    const deltaX = mouseX - playerCenterX;
-    const deltaY = mouseY - playerCenterY;
-    const angle = Math.atan2(deltaY, deltaX);
-    const normalizedAngle = (angle + 2 * Math.PI) % (2 * Math.PI);
-    const direction = Math.round(normalizedAngle / (Math.PI / 2)) % 4;
-    const [dx, dy] = directions[direction];
+    const [dx, dy] = this.lastDirection;
     const bullet = { x: this.player.x + dx, y: this.player.y + dy, dx, dy };
     this.bullets.push(bullet);
   }
@@ -244,6 +230,8 @@ export default class Game {
       }
       const enemyIdx = this.enemies.findIndex(e => e.x === bullet.x && e.y === bullet.y);
       if (enemyIdx !== -1) {
+        const enemy = this.enemies[enemyIdx];
+        this.dyingEnemies.push(new DyingEnemy(enemy.x, enemy.y));
         this.enemies.splice(enemyIdx, 1);
         this.grid[bullet.y][bullet.x] = null;
         this.bullets.splice(i, 1);
