@@ -15,6 +15,7 @@ export default class Game {
     this.bombs = [];
     this.dyingEnemies = [];
     this.shrinkingEnemies = [];
+    this.bullets = [];
     this.grid = this.createEmptyGrid();
     this._isGameOver = false;
     this.currentLevel = null;
@@ -148,6 +149,29 @@ export default class Game {
     this.shrinkingEnemies.forEach(s => s.updateAnimation());
     this.dyingEnemies = this.dyingEnemies.filter(d => !d.isDone());
     this.shrinkingEnemies = this.shrinkingEnemies.filter(s => !s.isDone());
+    this.randomlyGenerateEnemy();
+    this.updateBullets();
+  }
+  randomlyGenerateEnemy() {
+    if (this.enemies.length === 0) return;
+    const directions = [
+      [1, 0], [0, 1], [-1, 0], [0, -1]
+    ];
+    const freeAdjacentCells = [];
+    for (const enemy of this.enemies) {
+      for (const [dx, dy] of directions) {
+        const nx = enemy.x + dx;
+        const ny = enemy.y + dy;
+        if (this.isInsideGrid(nx, ny) && this.grid[ny][nx] === null) {
+          freeAdjacentCells.push({ x: nx, y: ny });
+        }
+      }
+    }
+    if (freeAdjacentCells.length > 0) {
+      const cell = freeAdjacentCells[Math.floor(Math.random() * freeAdjacentCells.length)];
+      this.enemies.push(new Enemy(cell.x, cell.y));
+      this.grid[cell.y][cell.x] = 'E';
+    }
   }
   restart() {
     if (this.currentLevel) {
@@ -163,6 +187,7 @@ export default class Game {
     this.enemies.forEach(e => e.draw(ctx, size));
     if (this.player) this.player.draw(ctx, size);
     this.bombs.forEach(b => b.draw(ctx, size));
+    this.drawBullets(ctx, size);
 
     // Draw game over message
     if (this._isGameOver) {
@@ -174,6 +199,55 @@ export default class Game {
       ctx.fillText('Game Over', ctx.canvas.width/2, ctx.canvas.height/2 - 50);
       ctx.font = '24px Arial';
       ctx.fillText('Press R to Restart', ctx.canvas.width/2, ctx.canvas.height/2 + 50);
+    }
+  }
+
+  drawBullets(ctx, size) {
+    ctx.fillStyle = 'yellow';
+    this.bullets.forEach(bullet => {
+      ctx.beginPath();
+      ctx.arc(bullet.x * size + size / 2, bullet.y * size + size / 2, size / 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  shootBullet() {
+    if (!this.player || this._isGameOver || this.bullets.length > 0) return;
+    const directions = [
+      [1, 0],   // right
+      [0, 1],   // down
+      [-1, 0],  // left
+      [0, -1]   // up
+    ];
+    const cellSize = 1; // Assuming cell size is 1 for simplicity
+    const playerCenterX = (this.player.x + 0.5) * cellSize;
+    const playerCenterY = (this.player.y + 0.5) * cellSize;
+    const mouseX = 0; // This should be updated with actual mouse position if needed
+    const mouseY = 0; // This should be updated with actual mouse position if needed
+    const deltaX = mouseX - playerCenterX;
+    const deltaY = mouseY - playerCenterY;
+    const angle = Math.atan2(deltaY, deltaX);
+    const normalizedAngle = (angle + 2 * Math.PI) % (2 * Math.PI);
+    const direction = Math.round(normalizedAngle / (Math.PI / 2)) % 4;
+    const [dx, dy] = directions[direction];
+    const bullet = { x: this.player.x + dx, y: this.player.y + dy, dx, dy };
+    this.bullets.push(bullet);
+  }
+  updateBullets() {
+    for (let i = this.bullets.length - 1; i >= 0; i--) {
+      const bullet = this.bullets[i];
+      bullet.x += bullet.dx;
+      bullet.y += bullet.dy;
+      if (!this.isInsideGrid(bullet.x, bullet.y)) {
+        this.bullets.splice(i, 1);
+        continue;
+      }
+      const enemyIdx = this.enemies.findIndex(e => e.x === bullet.x && e.y === bullet.y);
+      if (enemyIdx !== -1) {
+        this.enemies.splice(enemyIdx, 1);
+        this.grid[bullet.y][bullet.x] = null;
+        this.bullets.splice(i, 1);
+      }
     }
   }
 } 
