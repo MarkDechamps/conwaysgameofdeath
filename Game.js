@@ -2,6 +2,7 @@ import { Player } from './Player.js';
 import { Enemy } from './Enemy.js';
 import { Bomb } from './Bomb.js';
 import { DyingEnemy } from './DyingEnemy.js';
+import { ShrinkingEnemy } from './ShrinkingEnemy.js';
 
 const BACKGROUND_IMAGE = new Image();
 BACKGROUND_IMAGE.src = 'img/background.png';
@@ -13,8 +14,16 @@ export default class Game {
     this.enemies = [];
     this.bombs = [];
     this.dyingEnemies = [];
+    this.shrinkingEnemies = [];
     this.grid = this.createEmptyGrid();
+    this._isGameOver = false;
+    this.currentLevel = null;
   }
+
+  get isGameOver() {
+    return this._isGameOver;
+  }
+
   createEmptyGrid() {
     return Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(null));
   }
@@ -23,7 +32,10 @@ export default class Game {
     this.enemies = [];
     this.bombs = [];
     this.dyingEnemies = [];
+    this.shrinkingEnemies = [];
     this.player = null;
+    this._isGameOver = false;
+    this.currentLevel = levelData;
     const rows = levelData.trim().split('/');
     for (let y = 0; y < rows.length; y++) {
       let x = 0;
@@ -46,15 +58,21 @@ export default class Game {
     return x >= 0 && x < this.gridSize && y >= 0 && y < this.gridSize;
   }
   movePlayer(dx, dy) {
-    if (!this.player) return;
+    if (!this.player || this._isGameOver) return;
     const newX = this.player.x + dx;
     const newY = this.player.y + dy;
     if (!this.isInsideGrid(newX, newY)) return;
+    
+    // Check for collision with enemy
     const enemyIdx = this.enemies.findIndex(e => e.x === newX && e.y === newY);
     if (enemyIdx !== -1) {
-      this.enemies.splice(enemyIdx, 1);
-      this.dyingEnemies.push(new DyingEnemy(newX, newY));
+      // Player dies when touching enemy
+      this.grid[this.player.y][this.player.x] = null;
+      this.player = null;
+      this._isGameOver = true;
+      return;
     }
+    
     this.grid[this.player.y][this.player.x] = null;
     this.player.x = newX;
     this.player.y = newY;
@@ -112,7 +130,7 @@ export default class Game {
       for (let x = 0; x < this.gridSize; x++) {
         if (this.grid[y][x] === 'E' && nextGrid[y][x] !== 'E') {
           if (!this.dyingEnemies.some(d => d.x === x && d.y === y && !d.isDone())) {
-            this.dyingEnemies.push(new DyingEnemy(x, y));
+            this.shrinkingEnemies.push(new ShrinkingEnemy(x, y));
           }
         }
       }
@@ -127,15 +145,35 @@ export default class Game {
     if (this.player) this.player.updateAnimation();
     this.enemies.forEach(e => e.updateAnimation());
     this.dyingEnemies.forEach(d => d.updateAnimation());
+    this.shrinkingEnemies.forEach(s => s.updateAnimation());
     this.dyingEnemies = this.dyingEnemies.filter(d => !d.isDone());
+    this.shrinkingEnemies = this.shrinkingEnemies.filter(s => !s.isDone());
+  }
+  restart() {
+    if (this.currentLevel) {
+      this.loadLevel(this.currentLevel);
+    }
   }
   draw(ctx, size) {
     if (BACKGROUND_IMAGE.complete && BACKGROUND_IMAGE.naturalWidth) {
       ctx.drawImage(BACKGROUND_IMAGE, 0, 0, ctx.canvas.width, ctx.canvas.height);
     }
     this.dyingEnemies.forEach(d => d.draw(ctx, size));
+    this.shrinkingEnemies.forEach(s => s.draw(ctx, size));
     this.enemies.forEach(e => e.draw(ctx, size));
     if (this.player) this.player.draw(ctx, size);
     this.bombs.forEach(b => b.draw(ctx, size));
+
+    // Draw game over message
+    if (this._isGameOver) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      ctx.fillStyle = 'white';
+      ctx.font = '48px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Game Over', ctx.canvas.width/2, ctx.canvas.height/2 - 50);
+      ctx.font = '24px Arial';
+      ctx.fillText('Press R to Restart', ctx.canvas.width/2, ctx.canvas.height/2 + 50);
+    }
   }
 } 
